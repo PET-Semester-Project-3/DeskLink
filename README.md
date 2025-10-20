@@ -4,4 +4,4 @@ This is a program made to link [DeskMate](https://github.com/PET-Semester-Projec
 
 # Requirements
 - C++
-- Flask
+- CROW
