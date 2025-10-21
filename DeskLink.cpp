@@ -4,17 +4,67 @@
 
 #include "dbop.h"
 #include "DeskLink.h"
-
+#include "Connection.h"
 
 int main()
 {
-    stdio_init_all();
+     stdio_init_all();
+    if (cyw43_arch_init()) 
+    {
+        printf("failed to initialise\n");
+        return 1;
+    }
+    cyw43_arch_enable_sta_mode();
+    
+    // Add a simple SSI handler
+    Connector::AddSSIHandler({
+        "uptime", // tag
+        []() -> std::string 
+        {
+            // Return uptime in seconds as string
+            return std::to_string(time_us_64() / 1000000);
+        }
+    });
+
+    // Add a simple CGI handler
+    tCGI cgi;
+    cgi.pcCGIName = "/hello.cgi";
+    cgi.pfnCGIHandler = [](int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) -> const char* 
+    {
+        return "/index.shtml";
+    };
+   Connector::AddCGIHandler(cgi);
 
 
+#if LWIP_HTTPD_SUPPORT_POST
+    // Add a simple POST handler
+    PostHandler ph;
+    ph.url = "/led.cgi";
+    ph.placeholder_page = "/404.shtml";
+    ph.fn = [](void* conn, PostContext* pc) -> std::string 
+    {
+        // Just print the first param if exists
+        char buf[32];
+        char* val = Connector::httpd_param_value(pc->buf, "led_state=",buf,sizeof(buf));
+        if(val) 
+        {
+            printf("POST led_state=%s\n", val);
+        }
+        return "/index.shtml";
+    };
+    Connector::AddPostHandler(ph);
+#endif
 
+    printf("AAAA");
+    printf("dg");
+    Connector::Init();
 
-
-
+    printf("BBB");
+    while(true)
+    {
+        sleep_ms(10);
+        printf("check");
+    }
 
     /*
     Led RedLED(7);                                                              C_DeskLink("Create Red LED object on GPIO7");
