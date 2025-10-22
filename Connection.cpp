@@ -4,6 +4,7 @@
 std::vector<tCGI> Connector::m_cgi_handlers;
 std::vector<SSIHandler> Connector::m_ssi_registry;
 std::vector<const char*> Connector::m_tag_names;
+std::vector<std::string> Connector::m_tag_name_storage;
 std::vector<PostHandler> Connector::m_post_handlers;
 std::vector<PostContext> Connector::m_post_context;
 absolute_time_t Connector::m_wifi_connected_time;

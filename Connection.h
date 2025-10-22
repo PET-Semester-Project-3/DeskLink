@@ -21,6 +21,9 @@
 #include <string>
 #include <functional>
 
+#include "dbop.h"
+
+
 #ifndef CYW43_HOST_NAME
 #define CYW43_HOST_NAME "PicoW"
 #endif
@@ -62,11 +65,6 @@ struct PostHandler
     std::string placeholder_page = "";                             
     std::function<std::string(void* connection, PostContext* pc)> fn ;    
 };
-
-
-
-
-
 
 
 class Connector
@@ -116,6 +114,16 @@ public:
     #if LWIP_MDNS_RESPONDER
     dns_init(hostname);
     #endif
+
+    printf("m_tag_names set up");
+    m_tag_names.reserve(m_tag_name_storage.size());
+
+    for (int i = 0; i<m_tag_name_storage.size();i++)
+    {
+      m_tag_names.push_back(m_tag_name_storage[i].c_str());
+    }
+
+
 
     cyw43_arch_lwip_begin();
 
@@ -199,8 +207,10 @@ public:
         if (h.tag == handler.tag) return false;
           
 
-    m_tag_names.reserve(m_tag_names.capacity()+1);
-    m_tag_names.push_back(handler.tag.c_str());
+    C_DeskLink("SSI added");
+
+    m_tag_name_storage.reserve(m_tag_name_storage.capacity()+1);
+    m_tag_name_storage.push_back(handler.tag);
 
     m_ssi_registry.reserve(m_ssi_registry.capacity() + 1); // In order to prevent dynamic vector size increase, which is 2n, doubling the capacity if not enough
     m_ssi_registry.push_back(handler);
@@ -348,18 +358,24 @@ private:
     , uint16_t current_tag_part, uint16_t *next_tag_part
 #endif
 )
-{
+  {
+    C_DeskLink("ssi handler run");
+    C_DeskLink("index: " + std::to_string(iIndex));
+    
 
-      if (iIndex < 0 || iIndex >= (int)m_ssi_registry.size())
-          return 0;
+    if (iIndex < 0 || iIndex >= (int)m_ssi_registry.size())
+        return 0;
 
-      std::string result = m_ssi_registry[iIndex].func();
+    std::string result = m_ssi_registry[iIndex].func(); C_DeskLink("Running func");
 
-      // Copy safely into buffer
-      strncpy(pcInsert, result.c_str(), iInsertLen);
-      pcInsert[iInsertLen - 1] = '\0'; // ensure null termination
+    C_DeskLink("res = " + result);
 
-      return result.size();
+    // Copy safely into buffer
+    strncpy(pcInsert, result.c_str(), iInsertLen);
+    pcInsert[iInsertLen - 1] = '\0'; // ensure null termination
+    size_t inserted = strnlen(pcInsert, iInsertLen);
+
+    return inserted;
   }
 
 
@@ -367,6 +383,7 @@ private:
 
   static std::vector<tCGI> m_cgi_handlers;
   static std::vector<SSIHandler> m_ssi_registry;
+  static std::vector<std::string> m_tag_name_storage;
   static std::vector<const char*> m_tag_names;
 
 
