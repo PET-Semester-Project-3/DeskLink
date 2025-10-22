@@ -6,8 +6,12 @@
 #include "DeskLink.h"
 #include "Connection.h"
 
+
+static bool LED_state = false;
+
 int main()
 {
+
     stdio_init_all();
     if (cyw43_arch_init()) 
     {
@@ -17,8 +21,10 @@ int main()
     cyw43_arch_enable_sta_mode();
     
 
-     // Add a simple SSI handler
-    Connector::AddSSIHandler({"status", // tag
+    // SSI - Dynamic variable in the SHTML <!--#tag--> format
+
+    // Add an SSI for status - pass
+    Connector::AddSSIHandler({"status", 
         []() -> std::string 
         {
             C_DeskLink("status");
@@ -26,8 +32,8 @@ int main()
         }
     });
 
-    // Add a simple SSI handler
-    Connector::AddSSIHandler({"welcome", // tag
+    // Add an SSI for welcome - Hello from Pico
+    Connector::AddSSIHandler({"welcome", 
         []() -> std::string 
         {
             C_DeskLink("welcome");
@@ -35,8 +41,8 @@ int main()
         }
     });
 
-    // Add a simple SSI handler
-    Connector::AddSSIHandler({"uptime", // tag
+    // Add an SSI for uptime - time since connected
+    Connector::AddSSIHandler({"uptime",
         []() -> std::string 
         {
             C_DeskLink("uptime");
@@ -46,37 +52,40 @@ int main()
         }
     });
 
-    // Add a simple SSI handler
-    Connector::AddSSIHandler({"ledstate", // tag
+    // Add an SSI for the led state - ON : OFF
+    Connector::AddSSIHandler({"ledstate",
         []() -> std::string 
         {
             C_DeskLink("LED State");
-            return "OFF";
+            return LED_state ? "ON" : "OFF";
         }
     });
 
-    // Add a simple SSI handler
-    Connector::AddSSIHandler({"ledinv", // tag
+    // Add an SSI for the inverse of the led state - ON : OFF
+    Connector::AddSSIHandler({"ledinv",
         []() -> std::string 
         {
             C_DeskLink("LED Inv");
-            return "OFF";
+            return !LED_state ? "ON" : "OFF";
         }
     });
 
-    // Add a simple SSI handler
+    // Add an SSI for table 
     Connector::AddSSIHandler({"table", // tag
         []() -> std::string 
         {
-            //
+            C_DeskLink("table");
             return "<tr><td>This is table row</td></tr>";
         }
     });
 
+    // ===================================================================
+    
+    // CGIs are possible Routes
 
-    // Add a simple CGI handler
+    // Add a CGI for base url "/"
     tCGI cgi;
-    cgi.pcCGIName = "/";
+    cgi.pcCGIName = "/"; //url
     cgi.pfnCGIHandler = [](int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) -> const char* 
     {
         C_DeskLink("/ CGI");
@@ -95,10 +104,10 @@ int main()
 
         return "/index.shtml";
     };
-   Connector::AddCGIHandler(cgi);
+    Connector::AddCGIHandler(cgi);
 
 
-    // Add a simple CGI handler
+    // Add a CGI for the index.shtml
     tCGI cgi1;
     cgi1.pcCGIName = "/index.shtml";
     cgi1.pfnCGIHandler = [](int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) -> const char* 
@@ -119,34 +128,43 @@ int main()
 
         return "/index.shtml";
     };
-   Connector::AddCGIHandler(cgi1);
+    Connector::AddCGIHandler(cgi1);
 
+    // Current CGIs use the same function, could be different, could be made into a global one
+
+    // ===================================================================
+
+    // Setup for the POST responses
 
 #if LWIP_HTTPD_SUPPORT_POST
     // Add a simple POST handler
     PostHandler ph;
-    ph.url = "/led.cgi";
-    ph.placeholder_page = "/ledfail.shtml";
-    ph.fn = [](void* conn, PostContext* pc) -> std::string 
+    ph.url = "/led.cgi";                            // URL for the post
+    ph.placeholder_page = "/ledfail.shtml";         // URL for waiting and incorrect
+    ph.fn = [](void* conn, PostContext* pc) -> std::string // Function to handle the URL, change the LED state
     {
         C_DeskLink("Post handler");
         char buf[4];
         char *val = Connector::httpd_param_value(pc->buf, "led_state=", buf, sizeof(buf));
-        if (val) 
+        if (val)                                    // Response exists
         {
             C_DeskLink("flip flopped");
+            LED_state = !LED_state; C_DeskLink("State: " + LED_state ? "ON" : "OFF");
+            cyw43_gpio_set(&cyw43_state, 0, LED_state);     // Change the LED state
         }
 
-        return "/ledpass.shtml";
+        return "/ledpass.shtml";                    // URL on success
     };
     Connector::AddPostHandler(ph);
 #endif
 
-    Connector::Init();
+
+
+    Connector::Init();                              // INIT of the Connector, start of the webserver
 
     while(true)
     {
-        sleep_ms(10);
+        sleep_ms(10);                               // Could also be tight loop, nothing here as of now, as everything is just interupt
     }
 
     /*
