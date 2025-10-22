@@ -16,52 +16,134 @@ int main()
     }
     cyw43_arch_enable_sta_mode();
     
-    // Add a simple SSI handler
-    Connector::AddSSIHandler({
-        "uptime", // tag
+
+     // Add a simple SSI handler
+    Connector::AddSSIHandler({"status", // tag
         []() -> std::string 
         {
-            printf("SSI");
-            // Return uptime in seconds as string
-            return std::to_string(time_us_64() / 1000000);
+            C_DeskLink("status");
+            return "pass";
         }
     });
 
+    // Add a simple SSI handler
+    Connector::AddSSIHandler({"welcome", // tag
+        []() -> std::string 
+        {
+            C_DeskLink("welcome");
+            return "Hello from Pico";
+        }
+    });
+
+    // Add a simple SSI handler
+    Connector::AddSSIHandler({"uptime", // tag
+        []() -> std::string 
+        {
+            C_DeskLink("uptime");
+            uint64_t uptime_s = absolute_time_diff_us(Connector::m_wifi_connected_time, get_absolute_time()) / 1e6;
+            C_DeskLink("uptime_s: " + std::to_string(uptime_s));
+            return std::to_string(uptime_s);
+        }
+    });
+
+    // Add a simple SSI handler
+    Connector::AddSSIHandler({"ledstate", // tag
+        []() -> std::string 
+        {
+            C_DeskLink("LED State");
+            return "OFF";
+        }
+    });
+
+    // Add a simple SSI handler
+    Connector::AddSSIHandler({"ledinv", // tag
+        []() -> std::string 
+        {
+            C_DeskLink("LED Inv");
+            return "OFF";
+        }
+    });
+
+    // Add a simple SSI handler
+    Connector::AddSSIHandler({"table", // tag
+        []() -> std::string 
+        {
+            //
+            return "<tr><td>This is table row</td></tr>";
+        }
+    });
+
+
     // Add a simple CGI handler
     tCGI cgi;
-    cgi.pcCGIName = "/hello.cgi";
+    cgi.pcCGIName = "/";
     cgi.pfnCGIHandler = [](int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) -> const char* 
     {
-        printf("index shtml");
+        C_DeskLink("/ CGI");
+
+        if (iNumParams > 0) 
+        {
+            if (strcmp(pcParam[0], "test") == 0)
+            {
+                C_DeskLink("returning test");
+
+                return "/test.shtml";
+            }
+            
+        }
+        C_DeskLink("returning index");
+
         return "/index.shtml";
     };
    Connector::AddCGIHandler(cgi);
+
+
+    // Add a simple CGI handler
+    tCGI cgi1;
+    cgi1.pcCGIName = "/index.shtml";
+    cgi1.pfnCGIHandler = [](int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) -> const char* 
+    {
+        C_DeskLink("Index CGI");
+
+        if (iNumParams > 0) 
+        {
+            if (strcmp(pcParam[0], "test") == 0)
+            {
+                C_DeskLink("returning test");
+
+                return "/test.shtml";
+            }
+            
+        }
+        C_DeskLink("returning index");
+
+        return "/index.shtml";
+    };
+   Connector::AddCGIHandler(cgi1);
 
 
 #if LWIP_HTTPD_SUPPORT_POST
     // Add a simple POST handler
     PostHandler ph;
     ph.url = "/led.cgi";
-    ph.placeholder_page = "/404.shtml";
+    ph.placeholder_page = "/ledfail.shtml";
     ph.fn = [](void* conn, PostContext* pc) -> std::string 
     {
-        // Just print the first param if exists
-        char buf[32];
-        char* val = Connector::httpd_param_value(pc->buf, "led_state=",buf,sizeof(buf));
-        if(val) 
+        C_DeskLink("Post handler");
+        char buf[4];
+        char *val = Connector::httpd_param_value(pc->buf, "led_state=", buf, sizeof(buf));
+        if (val) 
         {
-            printf("POST led_state=%s\n", val);
+            C_DeskLink("flip flopped");
         }
-        return "/index.shtml";
+
+        return "/ledpass.shtml";
     };
     Connector::AddPostHandler(ph);
 #endif
 
-    printf("AAAA");
-    printf("dg");
     Connector::Init();
 
-    printf("BBB");
     while(true)
     {
         sleep_ms(10);

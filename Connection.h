@@ -76,29 +76,38 @@ public:
   /// Setup the handlers before it!!
   static int Init()
   {
-    printf("11");
     char hostname[sizeof(CYW43_HOST_NAME) + 4];
     memcpy(&hostname[0], CYW43_HOST_NAME, sizeof(CYW43_HOST_NAME) - 1);
     get_mac_ascii(CYW43_HAL_MAC_WLAN0, 8, 4, &hostname[sizeof(CYW43_HOST_NAME) - 1]);
     hostname[sizeof(hostname) - 1] = '\0';
 
-    printf("22");
-
 
     netif_set_hostname(&cyw43_state.netif[CYW43_ITF_STA], hostname);
 
-    printf("33");
-
 
     printf("Connecting to WiFi...\n");
-    if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30000)) 
+    int its = 0;
+    bool success = false;
+    while(!success && its < 3)
     {
-        printf("failed to connect.\n");
-        exit(1);
-    } else 
-    {
+      if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD, CYW43_AUTH_WPA2_AES_PSK, 30000)) 
+      {
+        printf("failed to connect. Retrying \n");
+        
+      } else 
+      {
         printf("Connected.\n");
+        success=true;
+      }
+      its++;
     }
+
+    if(!success)
+    {
+      printf("failed to connect. Exiting\n");
+      exit(1);
+    }
+   
     printf("\nReady, running httpd at %s\n", ip4addr_ntoa(netif_ip4_addr(netif_list)));
 
     // start http server
@@ -108,22 +117,15 @@ public:
     dns_init(hostname);
     #endif
 
-    printf("44\n");
-
     cyw43_arch_lwip_begin();
-      printf("55\n");
 
     httpd_init();
-        printf("66\n");
 
     http_set_cgi_handlers(m_cgi_handlers.data(), m_cgi_handlers.size());
-        printf("77\n");
 
     http_set_ssi_handler(ssi_handler_function, m_tag_names.data(), m_tag_names.size());
-        printf("88\n");
     sleep_ms(2000);
-    //cyw43_arch_lwip_end();
-        printf("1199\n");
+    cyw43_arch_lwip_end();
 
       return 0;
 
@@ -297,6 +299,7 @@ public:
   static std::vector<PostHandler> m_post_handlers;
   static std::vector<PostContext> m_post_context;
   
+  static absolute_time_t m_wifi_connected_time;
 
 #endif
 
@@ -366,7 +369,7 @@ private:
   static std::vector<SSIHandler> m_ssi_registry;
   static std::vector<const char*> m_tag_names;
 
-  static absolute_time_t m_wifi_connected_time;
+
 
 };
 
