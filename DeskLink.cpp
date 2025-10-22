@@ -21,6 +21,7 @@ int main()
         "uptime", // tag
         []() -> std::string 
         {
+            printf("SSI");
             // Return uptime in seconds as string
             return std::to_string(time_us_64() / 1000000);
         }
@@ -31,6 +32,7 @@ int main()
     cgi.pcCGIName = "/hello.cgi";
     cgi.pfnCGIHandler = [](int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) -> const char* 
     {
+        printf("index shtml");
         return "/index.shtml";
     };
    Connector::AddCGIHandler(cgi);
@@ -63,7 +65,6 @@ int main()
     while(true)
     {
         sleep_ms(10);
-        printf("check");
     }
 
     /*
