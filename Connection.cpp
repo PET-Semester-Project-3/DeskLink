@@ -6,7 +6,7 @@
 #define ErrorDebug(msg) printf("HTTP Server Error: %s\n", msg)
 
 // Existence checks to be added
-
+// SSI limits doesn't exist, it is length of a single thingy, not many, kinda not supported currently
 
 // Static member definitions
 std::vector<tCGI> Connector::m_cgi_handlers;            // Routes, kind of
