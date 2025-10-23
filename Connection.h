@@ -129,7 +129,7 @@ public:
 
   static const std::vector<SSIHandler>& GetSSIHandlers(void);
 
-  static void cleanup(void);
+  static void Cleanup(void);
 
 
 #if LWIP_HTTPD_SUPPORT_POST
