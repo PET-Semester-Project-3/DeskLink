@@ -24,7 +24,7 @@ int main()
     // SSI - Dynamic variable in the SHTML <!--#tag--> format
 
     // Add an SSI for status - pass
-    Connector::AddSSIHandler({"status", 
+    HTTPServer::AddSSIHandler({"status", 
         []() -> std::string 
         {
             C_DeskLink("status");
@@ -33,7 +33,7 @@ int main()
     });
 
     // Add an SSI for welcome - Hello from Pico
-    Connector::AddSSIHandler({"welcome", 
+    HTTPServer::AddSSIHandler({"welcome", 
         []() -> std::string 
         {
             C_DeskLink("welcome");
@@ -42,18 +42,18 @@ int main()
     });
 
     // Add an SSI for uptime - time since connected
-    Connector::AddSSIHandler({"uptime",
+    HTTPServer::AddSSIHandler({"uptime",
         []() -> std::string 
         {
             C_DeskLink("uptime");
-            uint64_t uptime_s = absolute_time_diff_us(Connector::m_wifi_connected_time, get_absolute_time()) / 1e6;
+            uint64_t uptime_s = absolute_time_diff_us(HTTPServer::m_wifi_connected_time, get_absolute_time()) / 1e6;
             C_DeskLink("uptime_s: " + std::to_string(uptime_s));
             return std::to_string(uptime_s);
         }
     });
 
     // Add an SSI for the led state - ON : OFF
-    Connector::AddSSIHandler({"ledstate",
+    HTTPServer::AddSSIHandler({"ledstate",
         []() -> std::string 
         {
             C_DeskLink("LED State");
@@ -62,7 +62,7 @@ int main()
     });
 
     // Add an SSI for the inverse of the led state - ON : OFF
-    Connector::AddSSIHandler({"ledinv",
+    HTTPServer::AddSSIHandler({"ledinv",
         []() -> std::string 
         {
             C_DeskLink("LED Inv");
@@ -71,7 +71,7 @@ int main()
     });
 
     // Add an SSI for table 
-    Connector::AddSSIHandler({"table", // tag
+    HTTPServer::AddSSIHandler({"table", // tag
         []() -> std::string 
         {
             C_DeskLink("table");
@@ -104,7 +104,7 @@ int main()
 
         return "/index.shtml";
     };
-    Connector::AddCGIHandler(cgi);
+    HTTPServer::AddCGIHandler(cgi);
 
 
     // Add a CGI for the index.shtml
@@ -128,7 +128,7 @@ int main()
 
         return "/index.shtml";
     };
-    Connector::AddCGIHandler(cgi1);
+    HTTPServer::AddCGIHandler(cgi1);
 
     // Current CGIs use the same function, could be different, could be made into a global one
 
@@ -145,7 +145,7 @@ int main()
     {
         C_DeskLink("Post handler");
         char buf[4];
-        char *val = Connector::httpd_param_value(pc->buf, "led_state=", buf, sizeof(buf));
+        char *val = HTTPServer::httpd_param_value(pc->buf, "led_state=", buf, sizeof(buf));
         if (val)                                    // Response exists
         {
             C_DeskLink("flip flopped");
@@ -155,12 +155,12 @@ int main()
 
         return "/ledpass.shtml";                    // URL on success
     };
-    Connector::AddPostHandler(ph);
+    HTTPServer::AddPostHandler(ph);
 #endif
 
 
 
-    Connector::Init();                              // INIT of the Connector, start of the webserver
+    HTTPServer::Init();                              // INIT of the HTTPServer, start of the webserver
 
     while(true)
     {

@@ -46,7 +46,7 @@
 struct SSIHandler
 {
   std::string tag;                      // Tag in the shtml <!--#tag-->
-  std::function<std::string()> func;    // Function that will generate the result that should be placed
+  std::function<std::string()> func;    // Function that will generate the result that should be placed, LWIP_HTTPD_MAX_TAG_NAME_LEN is the maximum amount of characters that could be returned
 };
 
 
@@ -105,12 +105,13 @@ struct PostHandler
     std::function<std::string(void* connection, PostContext* pc)> fn ;    
 };
 
+
 /**
  * @brief Class used for handling and setup of the basic HTTP Server
  * 
  * Currently for the details about the functions and variables head to Connection.cpp
  */
-class Connector
+class HTTPServer
 {
 public:
   static absolute_time_t m_wifi_connected_time;

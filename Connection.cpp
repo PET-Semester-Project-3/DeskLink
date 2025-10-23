@@ -5,23 +5,21 @@
 #define InfoDebug(msg) printf("HTTP Server: %s\n", msg)
 #define ErrorDebug(msg) printf("HTTP Server Error: %s\n", msg)
 
-// Existence checks to be added
-// SSI limits doesn't exist, it is length of a single thingy, not many, kinda not supported currently
 
 // Static member definitions
-std::vector<tCGI> Connector::m_cgi_handlers;            // Routes, kind of
-std::vector<SSIHandler> Connector::m_ssi_registry;      // Dynamic variables
-std::vector<const char*> Connector::m_tag_names;        // Dynamic variables, private for the C functions
-std::vector<std::string> Connector::m_tag_name_storage; // Dynamic variables, private storage of the data, to keep it persistent
-std::vector<PostHandler> Connector::m_post_handlers;    // POST handlers, what should happen for a given post
-std::vector<PostContext> Connector::m_post_context;     // Data stored between POSTs about the POST, used as context for a function to handle it
-absolute_time_t Connector::m_wifi_connected_time;       // Connection time
+std::vector<tCGI> HTTPServer::m_cgi_handlers;            // Routes, kind of
+std::vector<SSIHandler> HTTPServer::m_ssi_registry;      // Dynamic variables
+std::vector<const char*> HTTPServer::m_tag_names;        // Dynamic variables, private for the C functions
+std::vector<std::string> HTTPServer::m_tag_name_storage; // Dynamic variables, private storage of the data, to keep it persistent
+std::vector<PostHandler> HTTPServer::m_post_handlers;    // POST handlers, what should happen for a given post
+std::vector<PostContext> HTTPServer::m_post_context;     // Data stored between POSTs about the POST, used as context for a function to handle it
+absolute_time_t HTTPServer::m_wifi_connected_time;       // Connection time
 
 
 // Used to setup and start the server, should be used only once and only AFTER adding SSIs and CGIs
 // returns 0 on success
 // returns -1 on connection error (tries 3 times)
-int Connector::Init(void)
+int HTTPServer::Init(void)
 {
     char hostname[sizeof(CYW43_HOST_NAME) + 4];                                             
     memcpy(&hostname[0], CYW43_HOST_NAME, sizeof(CYW43_HOST_NAME) - 1);                     LineDebug("Set a host name variable");
@@ -92,10 +90,20 @@ int Connector::Init(void)
 
 // Used to add CGI Handlers, which are the routes
 // returns true on success
-// Check if it exists already for the URL
-bool Connector::AddCGIHandler(tCGI& handler)
+// returns false if the handler already exists for that path
+bool HTTPServer::AddCGIHandler(tCGI& handler)
 {
     InfoDebug("Adding a CGI handler - " + std::string(handler.pcCGIName));
+    InfoDebug("Checking whether the CGI handler already exists");
+    for(auto& cgi : m_cgi_handlers)
+    {
+        if(cgi.pcCGIName == handler.pcCGIName)
+        {
+            ErrorDebug("Returning false as the handler already exists");
+            return false;
+        }
+    }
+
     LineDebug("Reserving space for the CGI handlers");
     m_cgi_handlers.reserve(m_cgi_handlers.capacity() + 1); // In order to prevent dynamic vector size increase, which is 2n, doubling the capacity if not enough
     m_cgi_handlers.push_back(handler);                          LineDebug("CGI Handler added");
@@ -104,7 +112,7 @@ bool Connector::AddCGIHandler(tCGI& handler)
 
 // Get the reference to the vector with CGIs (Routes)
 // returns a const reference, so that it cannot be changed
-const std::vector<tCGI>& Connector::GetCGIHandlers(void)
+const std::vector<tCGI>& HTTPServer::GetCGIHandlers(void)
 {
     LineDebug("Returning CGI Handlers reference");
     return m_cgi_handlers;
@@ -114,7 +122,7 @@ const std::vector<tCGI>& Connector::GetCGIHandlers(void)
 // Used to get MAC of the device as ASCII
 // returns size of the array
 // returned mac is in dest_in
-size_t Connector::get_mac_ascii(int idx, size_t chr_off, size_t chr_len, char *dest_in)
+size_t HTTPServer::get_mac_ascii(int idx, size_t chr_off, size_t chr_len, char *dest_in)
 {
     static const char hexchr[17] = "0123456789ABCDEF";                              LineDebug("Setting up the MAC variable");
     uint8_t mac[6];
@@ -133,7 +141,7 @@ size_t Connector::get_mac_ascii(int idx, size_t chr_off, size_t chr_len, char *d
 // retuns the pointer to the buffer
 // returned value is stored inside value_buf
 // returns NULL on fail
-char *Connector::httpd_param_value(struct pbuf *p, const char *param_name, char *value_buf, size_t value_buf_len) 
+char *HTTPServer::httpd_param_value(struct pbuf *p, const char *param_name, char *value_buf, size_t value_buf_len) 
 {
     LineDebug("Getting a param " + std::string(param_name) + " value");
     size_t param_len = strlen(param_name);
@@ -171,21 +179,12 @@ char *Connector::httpd_param_value(struct pbuf *p, const char *param_name, char 
 
 
 // Used to add SSI Handler, which is a dynamic variable
-// The function can fail based on LWIP_HTTPD_MAX_TAG_NAME_LEN, as it is the limit of the amount of dynamic variables
-// The function can also fail in case of the tag already existing
 // The function copies the handler and important information, so persistency is not needed
 // returns true on success
-// returns false on fail
-// Be aware of LWIP_HTTPD_MAX_TAG_NAME_LEN
-bool Connector::AddSSIHandler(const SSIHandler& handler) 
+// returns false on fail - Handler already exists
+// Be aware of LWIP_HTTPD_MAX_TAG_NAME_LEN, as it is the maximum length for the value of the returning value
+bool HTTPServer::AddSSIHandler(const SSIHandler& handler) 
 {
-    LineDebug("Checking for the amount limit");
-    if(m_ssi_registry.size() >= LWIP_HTTPD_MAX_TAG_NAME_LEN)
-    {
-        ErrorDebug("Reached the size limit, returing false and aborting operation");
-        return false;
-    }
-
     LineDebug("Checking whether the tags repeat");
     for (auto& h : m_ssi_registry)
     {
@@ -209,21 +208,29 @@ bool Connector::AddSSIHandler(const SSIHandler& handler)
 
 // Get the reference to the vector with SSIs (Dynamic Variables)
 // returns a const reference, so that it cannot be changed
-const std::vector<SSIHandler>& Connector::GetSSIHandlers(void)
+const std::vector<SSIHandler>& HTTPServer::GetSSIHandlers(void)
 {
     LineDebug("Returning SSI Handlers reference");
     return m_ssi_registry;
 }
 
 
-// Used to clean up the connector before closing the program, removes netif
-void Connector::Cleanup(void)
+// Used to clean up the HTTPServer before closing the program, removes netif
+void HTTPServer::Cleanup(void)
 {
 LineDebug("Starting the cleanup");
 #if LWIP_MDNS_RESPONDER
     mdns_resp_remove_netif(&cyw43_state.netif[CYW43_ITF_STA]);      LineDebug("Netif removed");
 #endif
     cyw43_arch_deinit();                                            LineDebug("cyw43_arch deinited");
+
+    m_cgi_handlers.clear();                                         LineDebug("Clearing CGI handlers");
+    m_post_context.clear();                                         LineDebug("Clearing Post contexts");
+    m_post_handlers.clear();                                        LineDebug("Clearing Post handlers");
+    m_ssi_registry.clear();                                         LineDebug("Clearing SSI handlers");
+    m_tag_name_storage.clear();                                     LineDebug("Clearing CGI tag storage");
+    m_tag_names.clear();                                            LineDebug("Clearing CGI tag pointers, storage for C");
+
 }
 
 
@@ -234,8 +241,18 @@ LineDebug("Starting the cleanup");
 // Used to add Post Handler, so what happens for a given post
 // returns true on success
 // To add check for the URL
-bool Connector::AddPostHandler(PostHandler& handler)
+bool HTTPServer::AddPostHandler(PostHandler& handler)
 {
+    InfoDebug("Checking whether the Post handler already exists");
+    for(auto& ph : m_post_handlers)
+    {
+        if(ph.url == handler.url)
+        {
+            ErrorDebug("Returning false as the handler already exists");
+            return false;
+        }
+    }
+
     LineDebug("Reserving space for the additional Post handler");
     m_post_handlers.reserve(m_post_handlers.capacity() + 1); // In order to prevent dynamic vector size increase, which is 2n, doubling the capacity if not enough
     m_post_handlers.push_back(handler);                                 LineDebug("Post handler added");
@@ -245,7 +262,7 @@ bool Connector::AddPostHandler(PostHandler& handler)
 
 // Get the reference to the vector with POST handlers
 // returns a const reference, so that it cannot be changed
-const std::vector<PostHandler>& Connector::GetPostHandler(void)
+const std::vector<PostHandler>& HTTPServer::GetPostHandler(void)
 {
     LineDebug("Returning Post Handlers reference");
     return m_post_handlers;
@@ -258,7 +275,7 @@ const std::vector<PostHandler>& Connector::GetPostHandler(void)
 // Sets state of the Context connection to be BEGIN
 // returns ERR_OK on success
 // returns ERR_VAL on fail: No handler found; this connection already has on POST which is being processed
-err_t Connector::httpd_post_begin(void *connection, const char *uri, const char *http_request,u16_t http_request_len, int content_len, char *response_uri,u16_t response_uri_len, u8_t *post_auto_wnd)
+err_t HTTPServer::httpd_post_begin(void *connection, const char *uri, const char *http_request,u16_t http_request_len, int content_len, char *response_uri,u16_t response_uri_len, u8_t *post_auto_wnd)
 {
     LineDebug("POST Begin triggered");
 
@@ -298,7 +315,7 @@ err_t Connector::httpd_post_begin(void *connection, const char *uri, const char 
 // Saves the buffer and changes the state of a context to RECEIVE
 // returns ERR_OK on success
 // returns ERR_VAL on fail, in case no context was found (which should not happened ever)
-err_t Connector::httpd_post_receive_data(void *connection, struct pbuf *p) 
+err_t HTTPServer::httpd_post_receive_data(void *connection, struct pbuf *p) 
 {
     LineDebug("POST Receive data stage is happening");
     LWIP_ASSERT("NULL pbuf", p != NULL); // could be removed
@@ -325,7 +342,7 @@ err_t Connector::httpd_post_receive_data(void *connection, struct pbuf *p)
 // Sets the state to END at the start
 // Runs the function in the handler, saves the result as the new uri (NULL for no change)
 // If things went well, state changes to REMOVE, so it cleans up the POST buffer and erases currect context, so that a user can do another POST
-void Connector::httpd_post_finished(void *connection, char *response_uri, u16_t response_uri_len) 
+void HTTPServer::httpd_post_finished(void *connection, char *response_uri, u16_t response_uri_len) 
 {
     LineDebug("POST finish stage is happening");
     for (int i = 0; i < m_post_context.size(); i++) 
@@ -368,7 +385,7 @@ void Connector::httpd_post_finished(void *connection, char *response_uri, u16_t 
 
 // Adds a text record to the DNS
 // The page is accessible from the "/" path
-void Connector::srv_txt(struct mdns_service *service, void *txt_userdata)
+void HTTPServer::srv_txt(struct mdns_service *service, void *txt_userdata)
 {
     LineDebug("Setting up the service adding");
     err_t res;
@@ -380,7 +397,7 @@ void Connector::srv_txt(struct mdns_service *service, void *txt_userdata)
 
 
 // Sets so that the page can be accessed through a host name (hostname)
-void Connector::dns_init(char* hostname)
+void HTTPServer::dns_init(char* hostname)
 {
     LineDebug("Setting up the dns server");
     // Setup mdns
@@ -412,18 +429,18 @@ err_t httpd_post_begin(void *conn, const char *uri, const char *http_request,
                        u16_t http_request_len, int content_len, char *response_uri,
                        u16_t response_uri_len, u8_t *post_auto_wnd)
 {
-    return Connector::httpd_post_begin(conn, uri, http_request, http_request_len,
+    return HTTPServer::httpd_post_begin(conn, uri, http_request, http_request_len,
                                        content_len, response_uri, response_uri_len, post_auto_wnd);
 }
 
 err_t httpd_post_receive_data(void *conn, struct pbuf *p)
 {
-    return Connector::httpd_post_receive_data(conn, p);
+    return HTTPServer::httpd_post_receive_data(conn, p);
 }
 
 void httpd_post_finished(void *conn, char *response_uri, u16_t response_uri_len)
 {
-    Connector::httpd_post_finished(conn, response_uri, response_uri_len);
+    HTTPServer::httpd_post_finished(conn, response_uri, response_uri_len);
 }
 
 } // extern "C"
@@ -433,7 +450,7 @@ void httpd_post_finished(void *conn, char *response_uri, u16_t response_uri_len)
 // Internal, private function to handle SSI (Dynamic functions), function for the C lib
 // Checks if the name exists in saved states, if so put it into the buffer, so it can be changed on the page
 // return the size of the inserted buffer
-u16_t Connector::ssi_handler_function(int iIndex, char *pcInsert, int iInsertLen
+u16_t HTTPServer::ssi_handler_function(int iIndex, char *pcInsert, int iInsertLen
 #if LWIP_HTTPD_SSI_MULTIPART
 , uint16_t current_tag_part, uint16_t *next_tag_part
 #endif
@@ -447,7 +464,7 @@ u16_t Connector::ssi_handler_function(int iIndex, char *pcInsert, int iInsertLen
 
     // Copy safely into buffer
     strncpy(pcInsert, result.c_str(), iInsertLen);              LineDebug("Copy into the buffer");
-    pcInsert[iInsertLen - 1] = '\0';                            LineDebug("Add terminator"); // ensure null termination L
+    pcInsert[iInsertLen - 1] = '\0';                            LineDebug("Adding NULL terminator");
     size_t inserted = strnlen(pcInsert, iInsertLen);            LineDebug("Getting the length to be returned");
 
     return inserted;
