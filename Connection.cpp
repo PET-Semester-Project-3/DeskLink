@@ -1,10 +1,22 @@
 #include "Connection.h"
 #include "dbop.h"
 
-#define LineDebug(msg) printf("HTTP Server Line Debug: %s\n", msg)
-#define InfoDebug(msg) printf("HTTP Server: %s\n", msg)
-#define ErrorDebug(msg) printf("HTTP Server Error: %s\n", msg)
 
+//#define LineDebug(msg) printf("HTTP Server Line Debug: %s\n", msg)
+#ifndef LineDebug(msg)
+    #define LineDebug(msg)
+#endif 
+
+#define InfoDebug(msg) printf("HTTP Server: %s\n", msg)
+#ifndef InfoDebug(msg)
+    #define InfoDebug(msg)
+#endif 
+
+
+#define ErrorDebug(msg) printf("HTTP Server Error: %s\n", msg)
+#ifndef ErrorDebug(msg)
+    #define ErrorDebug(msg)
+#endif 
 
 // Static member definitions
 std::vector<tCGI> HTTPServer::m_cgi_handlers;            // Routes, kind of
@@ -68,7 +80,8 @@ int HTTPServer::Init(void)
 
     for (int i = 0; i < m_tag_name_storage.size();i++)
     {
-        m_tag_names.push_back(m_tag_name_storage[i].c_str());                           LineDebug("Adding a tag: " + m_tag_name_storage[i]);
+        std::string printVal = "Adding a tag: " + m_tag_name_storage[i];
+        m_tag_names.push_back(m_tag_name_storage[i].c_str());                           LineDebug(printVal.c_str());
     }
 
 
@@ -93,7 +106,8 @@ int HTTPServer::Init(void)
 // returns false if the handler already exists for that path
 bool HTTPServer::AddCGIHandler(tCGI& handler)
 {
-    InfoDebug("Adding a CGI handler - " + std::string(handler.pcCGIName));
+    std::string printRes = "Adding a CGI handler - " + std::string(handler.pcCGIName);
+    InfoDebug(printRes.c_str());
     InfoDebug("Checking whether the CGI handler already exists");
     for(auto& cgi : m_cgi_handlers)
     {
@@ -143,7 +157,8 @@ size_t HTTPServer::get_mac_ascii(int idx, size_t chr_off, size_t chr_len, char *
 // returns NULL on fail
 char *HTTPServer::httpd_param_value(struct pbuf *p, const char *param_name, char *value_buf, size_t value_buf_len) 
 {
-    LineDebug("Getting a param " + std::string(param_name) + " value");
+    std::string printRes = "Getting a param " + std::string(param_name) + " value";
+    LineDebug(printRes.c_str());
     size_t param_len = strlen(param_name);
     u16_t param_pos = pbuf_memfind(p, param_name, param_len, 0);            LineDebug("Found up the position of the param");
     if (param_pos != 0xFFFF) 

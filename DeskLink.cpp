@@ -7,7 +7,7 @@
 #include "Connection.h"
 
 
-static bool LED_state = false;
+static bool Occupied = false;
 
 int main()
 {
@@ -23,61 +23,35 @@ int main()
 
     // SSI - Dynamic variable in the SHTML <!--#tag--> format
 
-    // Add an SSI for status - pass
-    HTTPServer::AddSSIHandler({"status", 
-        []() -> std::string 
-        {
-            C_DeskLink("status");
-            return "pass";
-        }
-    });
-
-    // Add an SSI for welcome - Hello from Pico
-    HTTPServer::AddSSIHandler({"welcome", 
-        []() -> std::string 
-        {
-            C_DeskLink("welcome");
-            return "Hello from Pico";
-        }
-    });
-
     // Add an SSI for uptime - time since connected
     HTTPServer::AddSSIHandler({"uptime",
         []() -> std::string 
         {
             C_DeskLink("uptime");
             uint64_t uptime_s = absolute_time_diff_us(HTTPServer::m_wifi_connected_time, get_absolute_time()) / 1e6;
-            C_DeskLink("uptime_s: " + std::to_string(uptime_s));
             return std::to_string(uptime_s);
         }
     });
 
-    // Add an SSI for the led state - ON : OFF
-    HTTPServer::AddSSIHandler({"ledstate",
+    // Add an SSI for the occupied state Occupied : Unused
+    HTTPServer::AddSSIHandler({"occupied",
         []() -> std::string 
         {
-            C_DeskLink("LED State");
-            return LED_state ? "ON" : "OFF";
+            C_DeskLink("Get occupied state");
+            return Occupied ? "Occupied" : "Unused";
         }
     });
 
-    // Add an SSI for the inverse of the led state - ON : OFF
-    HTTPServer::AddSSIHandler({"ledinv",
+    // Add an SSI for the inverse of the occupied state - Occupied : Unused
+    HTTPServer::AddSSIHandler({"INV",
         []() -> std::string 
         {
-            C_DeskLink("LED Inv");
-            return !LED_state ? "ON" : "OFF";
+            C_DeskLink("Get inverse of an occupied state");
+            return !Occupied ? "Occupied" : "Unused";
         }
     });
 
-    // Add an SSI for table 
-    HTTPServer::AddSSIHandler({"table", // tag
-        []() -> std::string 
-        {
-            C_DeskLink("table");
-            return "<tr><td>This is table row</td></tr>";
-        }
-    });
+
 
     // ===================================================================
     
@@ -90,18 +64,6 @@ int main()
     {
         C_DeskLink("/ CGI");
 
-        if (iNumParams > 0) 
-        {
-            if (strcmp(pcParam[0], "test") == 0)
-            {
-                C_DeskLink("returning test");
-
-                return "/test.shtml";
-            }
-            
-        }
-        C_DeskLink("returning index");
-
         return "/index.shtml";
     };
     HTTPServer::AddCGIHandler(cgi);
@@ -113,18 +75,6 @@ int main()
     cgi1.pfnCGIHandler = [](int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) -> const char* 
     {
         C_DeskLink("Index CGI");
-
-        if (iNumParams > 0) 
-        {
-            if (strcmp(pcParam[0], "test") == 0)
-            {
-                C_DeskLink("returning test");
-
-                return "/test.shtml";
-            }
-            
-        }
-        C_DeskLink("returning index");
 
         return "/index.shtml";
     };
@@ -139,21 +89,25 @@ int main()
 #if LWIP_HTTPD_SUPPORT_POST
     // Add a simple POST handler
     PostHandler ph;
-    ph.url = "/led.cgi";                            // URL for the post
-    ph.placeholder_page = "/ledfail.shtml";         // URL for waiting and incorrect
+    ph.url = "/Login.cgi";                              // URL for the post
+    ph.placeholder_page = "";                         // URL for waiting and incorrect
     ph.fn = [](void* conn, PostContext* pc) -> std::string // Function to handle the URL, change the LED state
     {
         C_DeskLink("Post handler");
-        char buf[4];
-        char *val = HTTPServer::httpd_param_value(pc->buf, "led_state=", buf, sizeof(buf));
+        char buf[12];
+        char *val = HTTPServer::httpd_param_value(pc->buf, "desk_state=", buf, sizeof(buf));
+        C_DeskLink(val);
         if (val)                                    // Response exists
         {
             C_DeskLink("flip flopped");
-            LED_state = !LED_state; C_DeskLink("State: " + LED_state ? "ON" : "OFF");
-            cyw43_gpio_set(&cyw43_state, 0, LED_state);     // Change the LED state
+            Occupied = !Occupied;                           C_DeskLink(Occupied ? "Occupied" : "Unused");
+            cyw43_gpio_set(&cyw43_state, 0, Occupied);     // Change the LED state
+        }else
+        {
+            C_DeskLink("No value");
         }
 
-        return "/ledpass.shtml";                    // URL on success
+        return "/";                                  // URL on success
     };
     HTTPServer::AddPostHandler(ph);
 #endif
