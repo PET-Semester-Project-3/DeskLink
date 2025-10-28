@@ -17,7 +17,7 @@ else()
 endif()
 set(sdkVersion 2.2.0)
 set(toolchainVersion 14_2_Rel1)
-set(picotoolVersion 2.2.0-a4)
+set(picotoolVersion 2.2.0)
 set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
 if (EXISTS ${picoVscode})
     include(${picoVscode})
@@ -34,7 +34,7 @@ project(DeskLink C CXX ASM)
 pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
-add_executable(DeskLink DeskLink.cpp models/Led.cpp models/PushButton.cpp)
+add_executable(DeskLink DeskLink.cpp models/Led.cpp models/PushButton.cpp Connection.cpp)
 
 pico_set_program_name(DeskLink "DeskLink")
 pico_set_program_version(DeskLink "0.1")
@@ -50,11 +50,24 @@ target_link_libraries(DeskLink
 # Add the standard include files to the build
 target_include_directories(DeskLink PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_LIST_DIR}/.. # for our common lwipopts
+        ${PICO_LWIP_CONTRIB_PATH}/apps/httpd
+
 )
 
 # Add any user requested libraries
 target_link_libraries(DeskLink 
-        pico_cyw43_arch_none
+        pico_httpd_content
+        pico_lwip_http
+        pico_lwip_mdns
+        pico_cyw43_arch_lwip_threadsafe_background
         )
 
 pico_add_extra_outputs(DeskLink)
+
+pico_add_library(pico_httpd_content NOFLAG)
+
+pico_set_lwip_httpd_content(pico_httpd_content INTERFACE
+         ${CMAKE_CURRENT_LIST_DIR}/content/404.html
+        ${CMAKE_CURRENT_LIST_DIR}/content/index.shtml
+        )

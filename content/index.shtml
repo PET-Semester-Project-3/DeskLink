@@ -1,0 +1,18 @@
+<html>
+<head>
+    <title>Table API site</title>
+</head>
+<body>
+    <h1>Welcome!</h1>
+    <p>Uptime is <!--#uptime--> seconds</p>
+    <p>Desk state is <!--#occupied--> </p>
+
+    <p>
+        <form action="/Login.cgi" method="post">
+            <input type="hidden" name="desk_state" value="<!--#INV-->">
+            <input type="submit" value="Set desk state into <!--#INV-->">
+        </form>
+    </p>
+
+</body>
+</html>
