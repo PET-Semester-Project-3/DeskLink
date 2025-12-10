@@ -35,7 +35,7 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(Client Client.cpp )
+add_executable(Client Client.cpp WebConnection.cpp FlashStorage.cpp)
 
 pico_set_program_name(Client "Client")
 pico_set_program_version(Client "0.1")
