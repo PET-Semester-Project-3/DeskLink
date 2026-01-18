@@ -11,15 +11,18 @@
 #define LED_PIN 7       // Onboard LED for Pico
 
 
+bool OccupationChanged = false;
 
 // Handles Locking - occupied, function
 // Sends {id:last_id, occupied:boolean}
 void button_pressed(TCP_CLIENT_T *state) 
 {
+    // Set flag to send heatbeat immediately
+    OccupationChanged = true;
     // Flip the bool
     occupied = !occupied;
     // Send {id:last_id, occupied:boolean}
-    std::string body = "{\"id\": " + std::to_string(last_id) + ", \"occupied\": " + (occupied ? "true" : "false") + "}";
+    std::string body = "{\"id\": \"" + last_id + "\", \"occupied\": " + (occupied ? "true" : "false") + "}";
     printf("Sending occupied update: %s\n", body.c_str());
 
     // Get Response
@@ -45,6 +48,8 @@ void led_blink_task(int& time_passed_ms, bool& led_state)
         if (time_passed_ms >= 500) // toggle every 500 ms
         {
             gpio_put(LED_PIN, led_state ? 1 : 0);
+            time_passed_ms = 0;
+            led_state = !led_state;
         }
     } 
     else 
@@ -75,10 +80,11 @@ void setup_button(TCP_CLIENT_T *state)
     // reset variables
     bool last_button_state = false; 
     int heartbeatTimer = 0;
-    const int HeatbeatAmount = 6000; // 60 seconds
+    const int HeatbeatAmount = 600; // 60 seconds
     int led_time_passed_ms = 0;
     bool led_state_blink = false;
 
+    DEBUG_printf("Starting button function...\n");
     // main loop
     while (true) 
     {
@@ -86,6 +92,7 @@ void setup_button(TCP_CLIENT_T *state)
         bool current_state = gpio_get(BUTTON_PIN);
         if (last_button_state && !current_state) // falling edge
         { 
+            DEBUG_printf("Button pressed detected.\n");
             button_pressed(state);
         }
         last_button_state = current_state;
@@ -93,11 +100,16 @@ void setup_button(TCP_CLIENT_T *state)
 
         // heartbeat handling
         heartbeatTimer += 1;
-
-        if (heartbeatTimer >= HeatbeatAmount) 
+        if (heartbeatTimer % 120 == 0)
         {
+            DEBUG_printf("Heartbeat timer: %d / %d\n", heartbeatTimer, HeatbeatAmount);
+
+        }
+        if (heartbeatTimer >= HeatbeatAmount || OccupationChanged) 
+        {
+            OccupationChanged = false;
             // send heartbeat
-            std::string body = "{\"id\": " + std::to_string(last_id) + "}";
+            std::string body = "{\"id\": \"" + last_id + "\"}";            
             printf("Sending heartbeat: %s\n", body.c_str());
 
             std::string resp = tcp_send_request_and_wait(state, "/api/pico-heartbeat", body, 5000);
@@ -145,29 +157,29 @@ void setup_button(TCP_CLIENT_T *state)
 }
 
 // Handshake with server to get an ID
-void run_tcp_client_test(void) 
+TCP_CLIENT_T* run_tcp_client_test(void) 
 {
     TCP_CLIENT_T *state = tcp_client_init();
-    if (!state) return;
+    if (!state) return nullptr;
 
     if (!tcp_client_open(state)) 
     {
         free(state);
-        return;
+        return nullptr;
     }
 
     // get an id from server
     // send {"last_id": <last_id>}
-    std::string req = "{\"last_id\": " + std::to_string(last_id) + "}";
+    std::string req = "{\"last_id\": \"" + last_id + "\"}";
     std::string resp = tcp_send_request_and_wait(state, "/api/pico-connect", req, 3000);
     if (!resp.empty()) 
     {
-        // parse body like {"id":12}
-        int new_id = -1;
-        if (sscanf(resp.c_str(), "{\"id\":%d}", &new_id) == 1) 
+
+        char id_buffer[ID_MAX_LEN + 1] = {0};
+        if (sscanf(resp.c_str(), "{\"success\":true,\"id\":\"%36[^\"]\"}", id_buffer) == 1) 
         {
-            last_id = new_id;
-            printf("Got new id: %d\n", last_id);
+            last_id = std::string(id_buffer);
+            printf("Got new id: %s\n", last_id.c_str());
         } else 
         {
             printf("Couldn't parse id from: %s\n", resp.c_str());
@@ -177,9 +189,11 @@ void run_tcp_client_test(void)
         printf("No response for /api/pico-connect\n");
     }
 
+    printf("TCP client handshake complete.\n");
     // leave connection open for button usage
     // do not close here; setup_button will reuse the same state
     // free(state) will be done on program exit
+    return state;
 }
 
 int main() 
@@ -202,26 +216,29 @@ int main()
     printf("Connected to Wi-Fi.\n");
 
     // Load last_id from flash
-    uint32_t loaded = load_last_id();
-    printf("Loaded last_id = %u from flash\n", loaded);
+    std::string loaded = load_last_id();
+    printf("Loaded last_id = %s from flash\n", loaded.c_str());
+    last_id = loaded;
 
-    run_tcp_client_test();
+    TCP_CLIENT_T *state = run_tcp_client_test();
 
     // Save last_id to flash
     // After handshake, if server gives a new ID:
     if (last_id != loaded)
     {
-        last_id = loaded;
         save_last_id(last_id);
     }
+    DEBUG_printf("Starting button loop...\n");
 
     // Init TCP client for interactive use
-    TCP_CLIENT_T *state = tcp_client_init();
+    //TCP_CLIENT_T *state = tcp_client_init();
     if (!state || !tcp_client_open(state)) 
     {
         printf("Failed to init TCP client\n");
         return 1;
     }
+
+        DEBUG_printf("Starting button function...\n");
 
     // Start button loop (blocking)
     setup_button(state);
